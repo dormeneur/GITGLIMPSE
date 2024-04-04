@@ -1,51 +1,76 @@
 import os
-import requests
-# from bs4 import BeautifulSoup
-import openai
 import time
+from openai import OpenAI
+import requests
+from dotenv import load_dotenv
 
-# Replace with your OpenAI secret key
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-github_token = os.environ.get("GITHUB_TOKEN")
+
+load_dotenv()
+# openai.api_key = os.getenv("OPENAI_API_KEY")
+github_token = os.getenv("GITHUB_TOKEN")
+
+
+client = OpenAI(
+  api_key=os.environ['OPENAI_API_KEY']
+)
 
 def analyze_repository(repo_url):
-    # Fetch repository details from GitHub API
-    
-    response = requests.get(f"https://api.github.com/repos/{repo_url}")
-    repo_data = response.json()
-    print(repo_data)
+    headers = {"Authorization": f"token {github_token}"}
 
-    headers = {"Authorization": f"token {github_token}"}  # Add authorization header
-    response = requests.get(f"https://api.github.com/repos/{repo_url}", headers=headers)
+    time.sleep(2)
+
+    max_retries = 3
+    initial_delay = 1
+    endpoints = repo_url.split("/")[-2] + "/" + repo_url.split("/")[-1]
 
 
-    # Extract relevant information (replace with actual fields)
-    name = repo_data["name"]
-    description = repo_data["description"]
-    languages = repo_data["languages"]  # Dictionary with language names and byte counts
+    for attempt in range(max_retries):
+        
+        response = requests.get(f"https://api.github.com/repos/{endpoints}", headers=headers)
 
-    # Combine information for ChatGPT prompt
-    prompt = f"This is a GitHub repository called '{name}'.\n"
-    prompt += f"Description: {description}\n"
-    prompt += "What does this repository do in general?\n"
-    prompt += "What programming languages or technologies are used?\n"
-    prompt += "Why might someone use this repository?\n"
+        if response.status_code == 200:
+            repo_data = response.json()
+            if "full_name" in repo_data:
+                name = repo_data["full_name"]
+            else:
+                print("Error: Could not find repository name in response data.")
+                return None
+            
+            description = repo_data.get("description", "No description provided.")
+            languages = repo_data.get("language", "Unknown")
+            prompt = f"This is a GitHub repository called '{name}'.\n"
+            prompt += f"Description: {description}\n"
+            prompt += f"Programming Language: {languages}\n"
+            prompt += "What does this repository do in general?\n"
+            prompt += "Why might someone use this repository?\n"
 
-    # Use ChatGPT API to analyze the repository
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=1024,  # Adjust as needed for response length
-        n=1,
-        stop=None,
-        temperature=0.7,  # Adjust for creativity vs. accuracy
-    )
+            try:
+                response = client.completions.create(model = "davinci-002", prompt = prompt)
+            except:
+                print("\nEither of the two things happend:\n  1. You don't have sufficient quota for this model today.\n  2. You're broke and don't have access to this GPT text model.\n...and that's why I can't complete a single project\n")
+                exit()
 
-    analysis = response.choices[0].text.strip()
-    return analysis
+            analysis = response.choices[0].text.strip()
+
+            return analysis
+
+        elif response.status_code == 403:
+            print("Rate limit exceeded. Retrying...")
+            delay = initial_delay * 2**attempt
+            time.sleep(delay)
+
+    print(f"Error: Unexpected response status code: {response.status_code}")
+    return None
+
 
 if __name__ == "__main__":
+
     repo_url = input("Enter the GitHub repository URL: ")
+
     analysis = analyze_repository(repo_url)
-    print(f"\nAnalysis of '{repo_url}':\n")
-    print(analysis)
+
+    if analysis:
+        print(f"\nAnalysis of '{repo_url}':\n")
+        print(analysis)
+    else:
+        print("An error occurred. Please check the previous messages for details.")
