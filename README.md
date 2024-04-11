@@ -1,9 +1,7 @@
-A Python web scraper bot that analyzes GitHub repositories using the ChatGPT API.
+# A Python web scraper bot that analyzes GitHub repositories using the ChatGPT API.
 
 
-
-make sure to have these required libraries installed:
-
+Make sure to have these required libraries installed:
 1. os
 2. time
 3. requests
