@@ -7,3 +7,4 @@ Make sure to have these required libraries installed:
 3. requests
 4. openai
 5. dotenv (to access the GITHUB_SECRET_KEY and OPENAI_API in the .env file in the root directory)
+6. dimaag
